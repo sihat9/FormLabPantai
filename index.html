@@ -3,18 +3,23 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>OF019 Batch Print (CSV + PNG)</title>
+  <title>OF019 Batch Print (CSV + PNG, Drag Pins)</title>
   <style>
     body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:16px}
     .bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
     button,select{padding:8px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer}
     button:hover{background:#f6f6f6}
     pre{max-height:260px;overflow:auto;background:#fafafa;border:1px solid #eee;padding:8px;border-radius:8px}
-    canvas{border:1px solid #eee;max-width:100%;background:#fff}
     h3{margin:12px 0 8px}
     label{user-select:none}
-    .muted{opacity:.7}
-    @media print{ .no-print{display:none} body{margin:0} canvas{page-break-after:always;border:none} }
+    .muted{opacity:.75}
+    .stage{position:relative; display:inline-block; border:1px solid #eee; background:#fff}
+    canvas{display:block; max-width:100%}
+    .pin{position:absolute; transform:translate(-50%,-50%); background:#d00; color:#fff; font-size:12px; line-height:1; padding:3px 6px; border-radius:10px; cursor:grab; user-select:none; white-space:nowrap}
+    .pin:active{cursor:grabbing}
+    .pin .dot{width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;margin-right:4px;vertical-align:middle}
+    .legend{font-size:12px}
+    @media print{ .no-print{display:none} body{margin:0} .stage{border:none} }
   </style>
 </head>
 <body>
@@ -24,29 +29,10 @@
     <button id="btnPreview">Preview Rekod Pertama</button>
     <button id="btnPrintAll">Print All (daripada CSV ini)</button>
 
-    <label class="muted"><input type="checkbox" id="calibrate"> Calibrate (klik canvas)</label>
-    <select id="field">
-      <option value="">— pilih medan untuk kalibrasi —</option>
-      <option value="name">name</option>
-      <option value="address">address</option>
-      <option value="postcode">postcode</option>
-      <option value="mrn">mrn</option>
-      <option value="nric_passport">nric_passport</option>
-      <option value="dob">dob</option>
-      <option value="age">age</option>
-      <option value="contact">contact</option>
-      <option value="sex">sex</option>
-      <option value="email">email</option>
-      <option value="doctor_name">doctor_name</option>
-      <option value="doctor_clinic">doctor_clinic</option>
-      <option value="specimen_collection_date">specimen_collection_date</option>
-      <option value="specimen_collection_time">specimen_collection_time</option>
-      <option value="collected_by">collected_by</option>
-      <option value="fasting_yes">fasting_yes (✓)</option>
-      <option value="fasting_no">fasting_no (✓)</option>
-    </select>
-    <button id="btnExportMap" title="Salin MAP semasa (untuk tampal ke app.js)">Export MAP</button>
-    <span class="muted">Koordinat akan disimpan automatik (localStorage)</span>
+    <button id="btnTogglePins">Show Pins (drag to place)</button>
+    <button id="btnExportMap" title="Salin MAP semasa">Export MAP</button>
+    <button id="btnResetMap" title="Padam koordinat tersimpan">Reset MAP</button>
+    <span class="muted legend">Pin = lokasi teks; seret untuk ubah. Disimpan automatik (localStorage).</span>
   </div>
 
   <div class="no-print">
@@ -55,8 +41,11 @@
   </div>
 
   <h3>Pratonton</h3>
-  <canvas id="c" width="1654" height="2339"></canvas>
+  <div class="stage">
+    <canvas id="c" width="1654" height="2339"></canvas>
+    <div id="pins"></div>
+  </div>
 
-  <script src="app.js?v=calib2"></script>
+  <script src="app.js?v=dragpins_1"></script>
 </body>
 </html>
