@@ -1,5 +1,5 @@
 /************ KONFIG ************/
-// Web App URL anda:
+// URL Web App (Apps Script) anda:
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxR-LcgCukny9hSmX9611U-tv1gb1vnaHYP7Sb7LWeY_6HgqnIxYD6UuDua6vnSv2s/exec';
 // Imej borang (PNG) di root repo:
 const FORM_IMAGE = 'of019.png';
@@ -44,7 +44,7 @@ async function renderRecord(rec){
   const img = await loadImage(FORM_IMAGE);
   const canvas = $('#c');
   const ctx = canvas.getContext('2d');
-  canvas.width = img.width;
+  canvas.width = img.width;  // ikut saiz imej sebenar
   canvas.height = img.height;
   ctx.drawImage(img, 0, 0, img.width, img.height);
 
@@ -112,7 +112,7 @@ function loadImage(url){
 
 /************ MAP KOORDINAT (isi selepas calibrate) ************/
 const MAP = {
-  // Contoh awal—anda ubah ikut koordinat borang anda (guna Calibrate)
+  // — Contoh awal, ganti dengan koordinat hasil Calibrate —
   // name:{x:240,y:610}, mrn:{x:1210,y:610}, nric_passport:{x:1210,y:710},
   specimen_type: { /* BLOOD:{x:...,y:...}, URINE:{...}, ... */ },
   fasting_yes: null, // {x:...,y:...}
@@ -150,21 +150,27 @@ $('#btnPreview').addEventListener('click', async ()=>{
   await renderRecord(cacheRows[0]);
 });
 
+// === Upload → Sheet (FormData + no-cors: TIADA preflight/CORS) ===
 $('#btnUpload').addEventListener('click', async ()=>{
   if (!cacheRows.length) return alert('Sila pilih CSV dahulu');
   try {
+    const fd = new FormData();
+    fd.append('method', 'INSERT');
+    fd.append('items', JSON.stringify(cacheRows)); // hantar array rekod
+
     await fetch(WEB_APP_URL, {
       method: 'POST',
-      mode: 'no-cors',                                 // elak preflight CORS
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(cacheRows)
+      mode: 'no-cors',   // respons opaque, tetapi data sampai
+      body: fd
     });
-    alert('Permintaan upload dihantar. Semak Google Sheet — rekod baharu sepatutnya masuk di atas header.');
+
+    alert('Upload dihantar. Semak Google Sheet (tab "jobs") — baris baharu sepatutnya masuk di atas header.');
   } catch(e){
-    alert('Gagal menghantar: ' + e.message);
+    alert('Gagal hantar: ' + e.message);
   }
 });
 
+// === Print All dari CSV + tanda PRINTED di Sheet ===
 $('#btnPrintAll').addEventListener('click', async ()=>{
   if (!cacheRows.length) return alert('Sila pilih CSV dahulu');
   const printedKeys = [];
@@ -174,15 +180,12 @@ $('#btnPrintAll').addEventListener('click', async ()=>{
     const key = (String(rec.name||'').trim() + '|' + String(rec.nric_passport||'').trim()).toLowerCase();
     printedKeys.push(key);
   }
-  // tanda PRINTED di Sheet (jika rekod dah di-upload)
   try{
-    await fetch(WEB_APP_URL + '?method=MARK_PRINTED', {
-      method:'POST',
-      mode:'no-cors',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({keys: printedKeys})
-    });
-    alert('Cetak selesai. Saya telah hantar permintaan untuk tanda PRINTED (semak Sheet).');
+    const fd = new FormData();
+    fd.append('method', 'MARK_PRINTED');
+    fd.append('keys', JSON.stringify(printedKeys));
+    await fetch(WEB_APP_URL, { method:'POST', mode:'no-cors', body: fd });
+    alert('Cetak selesai. Permintaan tanda PRINTED telah dihantar (semak Sheet).');
   }catch(e){
     alert('Cetak selesai, tetapi gagal hantar tanda PRINTED: ' + e.message);
   }
