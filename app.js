@@ -1,11 +1,17 @@
 /************ KONFIG ************/
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxR-LcgCukny9hSmX9611U-tv1gb1vnaHYP7Sb7LWeY_6HgqnIxYD6UuDua6vnSv2s/exec';
-const FORM_IMAGE = 'of019.png'; // pastikan imej ini wujud sebaris index.html
+const FORM_IMAGE = 'of019.png'; // pastikan imej ini ada di root repo
 
 /************ STATE/DOM ************/
 const $ = s => document.querySelector(s);
-let cacheRows = [];             // rekod daripada CSV
-let MAP = loadMap();            // MAP gabungan: default + localStorage
+const $pins = $('#pins');
+const $canvas = $('#c');
+const ctx = $canvas.getContext('2d');
+
+let cacheRows = [];              // rekod daripada CSV
+let showPins = false;
+let MAP = loadMap();             // MAP default + yang tersimpan
+let bgImg = null;
 
 /************ CSV PARSER (tanpa library) ************/
 function parseCSV(text){
@@ -38,105 +44,160 @@ function splitCSVLine(s){
   return out;
 }
 
-/************ RENDER + OVERLAY (PNG latar) ************/
+/************ GRAFIK ************/
+async function ensureImage(){
+  if (bgImg) return bgImg;
+  bgImg = await new Promise((ok, err)=>{
+    const im = new Image(); im.onload=()=>ok(im); im.onerror=()=>err(new Error('Gagal muat of019.png'));
+    im.src = FORM_IMAGE + '?t=' + Date.now();
+  });
+  $canvas.width = bgImg.width; $canvas.height = bgImg.height;
+  return bgImg;
+}
+
 async function renderRecord(rec){
-  const img = await loadImage(FORM_IMAGE);
-  const c = $('#c'); const ctx = c.getContext('2d');
-  c.width = img.width; c.height = img.height;
+  const img = await ensureImage();
+  // Latar
+  ctx.clearRect(0,0,$canvas.width,$canvas.height);
   ctx.drawImage(img, 0, 0, img.width, img.height);
 
-  // Grid halus (bantu kalibrasi)
-  if ($('#calibrate').checked) drawGrid(ctx, c.width, c.height);
-
-  // Teks umum
+  // Teks
   ctx.fillStyle = '#000';
   ctx.font = '22px Helvetica';
-  const write = (key, text) => {
-    const m = MAP[key];
-    if (m && Number.isFinite(m.x) && Number.isFinite(m.y)) ctx.fillText(text || '', m.x, m.y);
+  const put = (key, text) => {
+    const m = getPoint(key);
+    if (m) ctx.fillText(text || '', m.x, m.y);
   };
 
-  write('name', rec.name);
-  write('address', rec.address);
-  write('postcode', rec.postcode);
-  write('mrn', rec.mrn);
-  write('nric_passport', rec.nric_passport);
-  write('dob', rec.dob);
-  write('age', rec.age);
-  write('contact', rec.contact);
-  write('sex', rec.sex);
-  write('email', rec.email);
-  write('doctor_name', rec.doctor_name);
-  write('doctor_clinic', rec.doctor_clinic);
-  write('history_notes', rec.history_notes);
-  write('drug_last_dose_date', rec.drug_last_dose_date);
-  write('drug_last_dose_time', rec.drug_last_dose_time);
-  write('specimen_collection_date', rec.specimen_collection_date);
-  write('specimen_collection_time', rec.specimen_collection_time);
-  write('collected_by', rec.collected_by);
-  write('gestation_week', rec.gestation_week);
+  put('name', rec.name);
+  put('address', rec.address);
+  put('postcode', rec.postcode);
+  put('mrn', rec.mrn);
+  put('nric_passport', rec.nric_passport);
+  put('dob', rec.dob);
+  put('age', rec.age);
+  put('contact', rec.contact);
+  put('sex', rec.sex);
+  put('email', rec.email);
+  put('doctor_name', rec.doctor_name);
+  put('doctor_clinic', rec.doctor_clinic);
+  put('history_notes', rec.history_notes);
+  put('drug_last_dose_date', rec.drug_last_dose_date);
+  put('drug_last_dose_time', rec.drug_last_dose_time);
+  put('specimen_collection_date', rec.specimen_collection_date);
+  put('specimen_collection_time', rec.specimen_collection_time);
+  put('collected_by', rec.collected_by);
+  put('gestation_week', rec.gestation_week);
 
-  // Checkbox “✓”
+  // Checkbox ✓
   ctx.font = '24px Helvetica';
-  if ((rec.fasting||'').toUpperCase()==='YES' && MAP.fasting_yes) ctx.fillText('✓', MAP.fasting_yes.x, MAP.fasting_yes.y);
-  if ((rec.fasting||'').toUpperCase()==='NO'  && MAP.fasting_no)  ctx.fillText('✓', MAP.fasting_no.x, MAP.fasting_no.y);
+  const fasting = (rec.fasting||'').toUpperCase();
+  if (fasting==='YES') { const p=getPoint('fasting_yes'); if (p) ctx.fillText('✓', p.x, p.y); }
+  if (fasting==='NO')  { const p=getPoint('fasting_no');  if (p) ctx.fillText('✓', p.x, p.y); }
 
   const st = (rec.specimen_type||'').toUpperCase();
-  if (MAP.specimen_type && MAP.specimen_type[st]) ctx.fillText('✓', MAP.specimen_type[st].x, MAP.specimen_type[st].y);
+  const pst = getPoint(`specimen_type.${st}`);
+  if (pst) ctx.fillText('✓', pst.x, pst.y);
 
   (rec.tests_profile||'').split(';').map(s=>s.trim()).filter(Boolean).forEach(label=>{
-    const p = MAP.profile[label]; if (p) ctx.fillText('✓', p.x, p.y);
+    const p = getPoint(`profile.${label}`);
+    if (p) ctx.fillText('✓', p.x, p.y);
   });
   (rec.tests_individual||'').split(';').map(s=>s.trim()).filter(Boolean).forEach(label=>{
-    const p = MAP.individual[label]; if (p) ctx.fillText('✓', p.x, p.y);
+    const p = getPoint(`individual.${label}`);
+    if (p) ctx.fillText('✓', p.x, p.y);
   });
 
   const others = (rec.other_tests||'').split('|').map(s=>s.trim()).filter(Boolean);
-  if (others.length && MAP.other_tests_rows?.length){
+  if (others.length && Array.isArray(MAP.other_tests_rows)){
     ctx.font = '18px Helvetica';
     for (let i=0;i<Math.min(others.length, MAP.other_tests_rows.length); i++){
       const pos = MAP.other_tests_rows[i];
-      ctx.fillText(others[i], pos.x, pos.y);
+      if (pos?.x && pos?.y) ctx.fillText(others[i], pos.x, pos.y);
     }
   }
 
-  // Tunjuk semua titik MAP semasa (untuk semak)
-  if ($('#calibrate').checked) drawMapDots(ctx);
+  // Papar/hide pin
+  if (showPins) renderPinsLayer();
 }
 
-function loadImage(url){
-  return new Promise((ok, err)=>{
-    const im = new Image(); im.onload = ()=>ok(im); im.onerror = ()=>err(new Error('Gagal memuat imej: '+url));
-    im.src = url + '?t=' + Date.now();
-  });
-}
-function drawGrid(ctx, w, h){
-  ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.lineWidth = 1;
-  for (let x=0; x<=w; x+=100){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
-  for (let y=0; y<=h; y+=100){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
-  ctx.restore();
-}
-function drawMapDots(ctx){
-  ctx.save(); ctx.fillStyle='#d00'; ctx.font='14px Helvetica';
-  Object.entries(MAP).forEach(([k,v])=>{
-    if (!v) return;
-    if (Array.isArray(v)) return;             // rows, abaikan
-    if (typeof v==='object' && 'x' in v && 'y' in v){
-      ctx.beginPath(); ctx.arc(v.x,v.y,3,0,6.283); ctx.fill();
-      ctx.fillText(k, v.x+6, v.y-6);
-    }
-    if (typeof v==='object' && !('x' in v) && !Array.isArray(v)){
-      Object.entries(v).forEach(([kk,pp])=>{
-        if (pp?.x!=null && pp?.y!=null){ ctx.beginPath(); ctx.arc(pp.x,pp.y,3,0,6.283); ctx.fill(); ctx.fillText(`${k}.${kk}`, pp.x+6, pp.y-6); }
-      });
-    }
-  });
-  ctx.restore();
+/************ PINS (drag & drop) ************/
+function listAllKeysForPins(){
+  // Hanya pin untuk top-level (x,y) dan subkey penting yang biasa digunakan
+  const baseKeys = [
+    'name','address','postcode','mrn','nric_passport','dob','age','contact','sex','email',
+    'doctor_name','doctor_clinic','history_notes','drug_last_dose_date','drug_last_dose_time',
+    'specimen_collection_date','specimen_collection_time','collected_by','gestation_week',
+    'fasting_yes','fasting_no'
+  ];
+  const subPairs = [
+    ['specimen_type',['BLOOD','URINE','STOOL']]
+    // Tambah profile/individual jika mahu buat pin juga
+  ];
+  const out = [...baseKeys];
+  subPairs.forEach(([grp, arr])=>arr.forEach(v=>out.push(`${grp}.${v}`)));
+  return out;
 }
 
-/************ MAP DEFAULT + SIMPANAN ************/
+function renderPinsLayer(){
+  $pins.innerHTML = '';
+  const keys = listAllKeysForPins();
+  keys.forEach(key=>{
+    const p = getPoint(key);
+    if (!p) return; // skip yang belum ada
+    const el = document.createElement('div');
+    el.className = 'pin';
+    el.dataset.key = key;
+    el.style.left = p.x + 'px';
+    el.style.top =  p.y + 'px';
+    el.innerHTML = `<span class="dot"></span>${key}`;
+    makeDraggable(el);
+    $pins.appendChild(el);
+  });
+  $pins.style.pointerEvents = 'auto';
+}
+
+function makeDraggable(el){
+  let drag = false, ox=0, oy=0;
+  const onDown = (ev)=>{
+    drag = true;
+    const pt = getEventXY(ev);
+    ox = pt.x - parseFloat(el.style.left);
+    oy = pt.y - parseFloat(el.style.top);
+    el.setPointerCapture?.(ev.pointerId || 1);
+  };
+  const onMove = (ev)=>{
+    if (!drag) return;
+    const pt = getEventXY(ev);
+    const nx = clamp(pt.x - ox, 0, $canvas.width);
+    const ny = clamp(pt.y - oy, 0, $canvas.height);
+    el.style.left = nx + 'px';
+    el.style.top  = ny + 'px';
+  };
+  const onUp = (ev)=>{
+    if (!drag) return;
+    drag = false;
+    const nx = parseFloat(el.style.left);
+    const ny = parseFloat(el.style.top);
+    setPoint(el.dataset.key, {x:nx,y:ny});
+    saveMap();
+    // Re-render preview untuk nampak teks ikut lokasi baru
+    if (cacheRows.length) renderRecord(cacheRows[0]);
+  };
+  el.addEventListener('pointerdown', onDown);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
+function getEventXY(ev){
+  const r = $canvas.getBoundingClientRect();
+  return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+}
+const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+
+/************ MAP + SIMPANAN ************/
 function defaultMap(){
-  // Anggaran untuk PNG A4 tinggi (±1654×2339). Sesuaikan sedikit dengan Calibrate.
+  // Anggaran awal (A4 tinggi ~1654×2339). Nanti cuma seret pin ke tempat sebenar.
   return {
     name:{x:220,y:820},
     address:{x:220,y:900},
@@ -164,24 +225,17 @@ function defaultMap(){
       BLOOD:{x:185,y:700}, URINE:{x:270,y:700}, STOOL:{x:360,y:700}
     },
 
-    profile:{
-      // contoh — tambah ikut borang anda
-      'Anaemia':{x:210,y:1320}, 'Diabetes':{x:210,y:1360}, 'Thyroid':{x:210,y:1400}
-    },
-    individual:{
-      'FBC':{x:640,y:1320}, 'HbA1C':{x:640,y:1360}, 'HBsAg':{x:640,y:1400}
-    },
-    other_tests_rows:[
-      {x:220,y:1500},{x:220,y:1530},{x:220,y:1560}
-    ]
+    profile:{},       // anda boleh tambah jika mahu “✓” profile tertentu
+    individual:{},    // anda boleh tambah jika mahu “✓” ujian individu
+    other_tests_rows:[{x:220,y:1500},{x:220,y:1530},{x:220,y:1560}]
   };
 }
 function loadMap(){
   const d = defaultMap();
-  try{
+  try {
     const saved = JSON.parse(localStorage.getItem('OF019_MAP')||'{}');
     return mergeDeep(d, saved);
-  }catch{ return d; }
+  } catch { return d; }
 }
 function saveMap(){
   localStorage.setItem('OF019_MAP', JSON.stringify(MAP));
@@ -194,48 +248,32 @@ function mergeDeep(a,b){
   }
   return out;
 }
+function getPoint(path){
+  const seg = path.split('.');
+  let cur = MAP;
+  for (const s of seg){
+    cur = cur?.[s];
+    if (!cur) return null;
+  }
+  if (cur && typeof cur==='object' && 'x' in cur && 'y' in cur) return cur;
+  return null;
+}
+function setPoint(path, pt){
+  const seg = path.split('.');
+  let cur = MAP;
+  for (let i=0;i<seg.length-1;i++){
+    const s = seg[i]; cur[s] = cur[s] || {};
+    cur = cur[s];
+  }
+  cur[seg[seg.length-1]] = pt;
+}
 
-/************ CALIBRATE: klik → assign ke medan terpilih ************/
-(function(){
-  const c = $('#c'), ctx = c.getContext('2d');
-  c.addEventListener('click',(ev)=>{
-    if (!$('#calibrate').checked) return;
-    const field = $('#field').value;
-    if (!field) return alert('Pilih medan di dropdown "— pilih medan —" dahulu');
-
-    const r = c.getBoundingClientRect();
-    const x = Math.round(ev.clientX - r.left);
-    const y = Math.round(ev.clientY - r.top);
-
-    // Tulis titik & label kecil
-    ctx.beginPath(); ctx.arc(x,y,3,0,6.283); ctx.fill();
-    ctx.font='14px Helvetica'; ctx.fillText(`(${x},${y})`, x+6, y-6);
-
-    // Simpan ke MAP (top-level shj; untuk subgroup seperti specimen_type.* — set manual)
-    if (field.includes('.')){ // contoh: specimen_type.BLOOD
-      const [grp,key] = field.split('.');
-      MAP[grp] = MAP[grp] || {};
-      MAP[grp][key] = {x,y};
-    } else {
-      MAP[field] = {x,y};
-    }
-    saveMap();
-    console.log('MAP dikemas kini:', field, {x,y});
-  });
-
-  $('#btnExportMap').addEventListener('click', ()=>{
-    const text = 'const MAP = ' + JSON.stringify(MAP, null, 2) + ';';
-    navigator.clipboard.writeText(text).then(()=>alert('MAP disalin ke clipboard. Tampal ke app.js jika mahu jadikan tetap.'));
-  });
-})();
-
-/************ EVENTS ************/
+/************ UI EVENTS ************/
 $('#csv').addEventListener('change', async (e)=>{
   const f = e.target.files[0]; if (!f) return;
   const text = await f.text();
   cacheRows = parseCSV(text);
   $('#list').textContent = JSON.stringify(cacheRows.slice(0,10), null, 2);
-  // auto-preview
   if (cacheRows.length) await renderRecord(cacheRows[0]);
 });
 
@@ -244,20 +282,37 @@ $('#btnPreview').addEventListener('click', async ()=>{
   await renderRecord(cacheRows[0]);
 });
 
-// Upload → Sheet (FormData + no-cors: tiada preflight/CORS)
+$('#btnTogglePins').addEventListener('click', async ()=>{
+  showPins = !showPins;
+  $('#btnTogglePins').textContent = showPins ? 'Hide Pins' : 'Show Pins (drag to place)';
+  if (showPins) renderPinsLayer(); else $pins.innerHTML='';
+});
+
+$('#btnExportMap').addEventListener('click', ()=>{
+  const text = 'const MAP = ' + JSON.stringify(MAP, null, 2) + ';';
+  navigator.clipboard.writeText(text).then(()=>alert('MAP disalin ke clipboard. Tampal ke app.js jika mahu jadikan tetap.'));
+});
+
+$('#btnResetMap').addEventListener('click', ()=>{
+  if (!confirm('Padam semua koordinat tersimpan?')) return;
+  localStorage.removeItem('OF019_MAP');
+  MAP = loadMap();
+  alert('MAP direset kepada anggaran asal.');
+  if (cacheRows.length) renderRecord(cacheRows[0]);
+});
+
+/************ Upload/Print (no-cors + FormData) ************/
 $('#btnUpload').addEventListener('click', async ()=>{
   if (!cacheRows.length) return alert('Sila pilih CSV dahulu');
   try {
     const fd = new FormData();
-    fd.append('method', 'INSERT');
-    fd.append('items', JSON.stringify(cacheRows)); // array rekod
-
+    fd.append('method','INSERT');
+    fd.append('items', JSON.stringify(cacheRows));
     await fetch(WEB_APP_URL, { method:'POST', mode:'no-cors', body: fd });
     alert('Permintaan upload dihantar. Semak Google Sheet — rekod baharu sepatutnya masuk di bawah header.');
   } catch(e){ alert('Gagal hantar: ' + e.message); }
 });
 
-// Print All dari CSV + tanda PRINTED (optional)
 $('#btnPrintAll').addEventListener('click', async ()=>{
   if (!cacheRows.length) return alert('Sila pilih CSV dahulu');
   const printedKeys = [];
@@ -267,11 +322,16 @@ $('#btnPrintAll').addEventListener('click', async ()=>{
     const key = (String(rec.name||'').trim() + '|' + String(rec.nric_passport||'').trim()).toLowerCase();
     printedKeys.push(key);
   }
-  try{
+  try {
     const fd = new FormData();
     fd.append('method','MARK_PRINTED');
     fd.append('keys', JSON.stringify(printedKeys));
     await fetch(WEB_APP_URL, { method:'POST', mode:'no-cors', body: fd });
     alert('Cetak selesai. Permintaan tanda PRINTED dihantar (semak Sheet).');
-  }catch(e){ alert('Cetak selesai, tetapi gagal hantar tanda PRINTED: ' + e.message); }
+  } catch(e) {
+    alert('Cetak selesai, tetapi gagal hantar tanda PRINTED: ' + e.message);
+  }
 });
+
+/************ Init ************/
+(async ()=>{ await ensureImage(); })();
