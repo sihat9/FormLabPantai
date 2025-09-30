@@ -29,13 +29,18 @@
   <h3>Pratonton</h3>
   <canvas id="c" width="842" height="1191"></canvas>
 
-  <!-- SheetJS -->
+  <!-- 1) SheetJS (XLSX) MESTI sebelum app.js -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.20.2/dist/xlsx.full.min.js"></script>
-  <!-- PDF.js -->
+
+  <!-- 2) PDF.js (pastikan versi sama untuk min dan worker) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.js"></script>
   <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.js";
+    // workerSrc perlu ditetapkan selepas pdf.min.js dimuat
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.js";
   </script>
+
+  <!-- 3) BARU panggil app.js (yang rujuk XLSX & pdfjsLib) -->
   <script src="app.js"></script>
 </body>
 </html>
