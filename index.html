@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>OF019 Batch Print</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:16px}
+    .bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+    canvas{border:1px solid #eee;max-width:100%;background:#fff}
+    pre{max-height:300px;overflow:auto;background:#fafafa;border:1px solid #eee;padding:8px}
+    @media print{ .no-print{display:none} body{margin:0} canvas{page-break-after:always;border:none} }
+  </style>
+</head>
+<body>
+  <div class="bar no-print">
+    <input type="file" id="excel" accept=".xlsx,.xls">
+    <input id="webapp" placeholder="Paste Web App URL di sini" style="min-width:420px">
+    <button id="btnUpload">Upload → Sheet</button>
+    <button id="btnPreview">Preview Rekod Pertama</button>
+    <button id="btnPrintAll">Print All (PENDING)</button>
+    <label style="margin-left:auto"><input type="checkbox" id="calibrate"> Calibrate (klik dapat koordinat)</label>
+  </div>
+
+  <div class="no-print">
+    <h3>Senarai (max 10)</h3>
+    <pre id="list"></pre>
+  </div>
+
+  <h3>Pratonton</h3>
+  <canvas id="c" width="842" height="1191"></canvas>
+
+  <!-- SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.20.2/dist/xlsx.full.min.js"></script>
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.5.136/pdf.worker.min.js";
+  </script>
+  <script src="app.js"></script>
+</body>
+</html>
