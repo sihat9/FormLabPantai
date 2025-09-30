@@ -24,9 +24,9 @@
 <body>
   <div class="bar no-print">
     <input type="file" id="excel" accept=".xlsx,.xls" />
-    <button id="btnUpload" title="Muat naik ke Google Sheet">Upload → Sheet</button>
-    <button id="btnPreview" title="Pratonton rekod pertama">Preview Rekod Pertama</button>
-    <button id="btnPrintAll" title="Cetak semua status PENDING">Print All (PENDING)</button>
+    <button id="btnUpload">Upload → Sheet</button>
+    <button id="btnPreview">Preview Rekod Pertama</button>
+    <button id="btnPrintAll">Print All (PENDING)</button>
     <label style="margin-left:auto">
       <input type="checkbox" id="calibrate" /> Calibrate (klik dapat koordinat)
     </label>
@@ -40,83 +40,56 @@
   <h3>Pratonton</h3>
   <canvas id="c" width="842" height="1191"></canvas>
 
-  <!-- LOADER DENGAN FALLBACK: pastikan XLSX & pdfjsLib siap sebelum app.js -->
+  <!-- LOADER dengan fallback: CDN → fallback tempatan (RELATIF: libs/...) -->
   <script>
-    // Util untuk load skrip dengan janji (Promise) + fallback URL
     function loadScript(urls) {
       if (!Array.isArray(urls)) urls = [urls];
       return new Promise((resolve, reject) => {
-        let idx = 0;
-        const tryNext = () => {
-          if (idx >= urls.length) return reject(new Error('Gagal muat: ' + urls.join(' , ')));
+        let i = 0;
+        const next = () => {
+          if (i >= urls.length) return reject(new Error('Gagal muat: ' + urls.join(' , ')));
           const s = document.createElement('script');
-          s.src = urls[idx++];
-          s.async = false; // kekalkan tertib
+          s.src = urls[i++]; s.async = false;
           s.onload = () => resolve(true);
-          s.onerror = () => {
-            console.warn('Gagal muat', s.src, '→ cuba fallback seterusnya…');
-            tryNext();
-          };
+          s.onerror = () => { console.warn('Gagal muat', s.src, '→ cuba fallback…'); next(); };
           document.head.appendChild(s);
         };
-        tryNext();
+        next();
       });
     }
-
     async function boot() {
       try {
-        // 1) XLSX (SheetJS) — jsDelivr → unpkg → lokal (jika ada)
+        // XLSX → fallback ke libs/xlsx.full.min.js (relatif)
         await loadScript([
           'https://cdn.jsdelivr.net/npm/xlsx@0.20.2/dist/xlsx.full.min.js',
           'https://unpkg.com/xlsx@0.20.2/dist/xlsx.full.min.js',
-          '/libs/xlsx.full.min.js' // opsyen: letak fail sendiri di repo (jika anda sediakan)
+          'libs/xlsx.full.min.js'
         ]);
-        if (typeof XLSX === 'undefined') throw new Error('XLSX tidak wujud selepas dimuat.');
+        if (typeof XLSX === 'undefined') throw new Error('XLSX tidak wujud.');
 
-        // 2) PDF.js 2.16.105 — jsDelivr → cdnjs → lokal
+        // PDF.js 2.16.105 → fallback ke libs/pdf.min.js (relatif)
         await loadScript([
           'https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/build/pdf.min.js',
           'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js',
-          '/libs/pdf.min.js'
+          'libs/pdf.min.js'
         ]);
-        if (typeof pdfjsLib === 'undefined') throw new Error('pdfjsLib tidak wujud selepas dimuat.');
+        if (typeof pdfjsLib === 'undefined') throw new Error('pdfjsLib tidak wujud.');
+        // Worker fallback (relatif juga)
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'libs/pdf.worker.min.js';
 
-        // Set workerSrc (guna fallback yang sepadan)
-        const workerFallbacks = [
-          'https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/build/pdf.worker.min.js',
-          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js',
-          '/libs/pdf.worker.min.js'
-        ];
-        // Cuba worker sampai berjaya “ping”
-        let workerSet = false;
-        for (const w of workerFallbacks) {
-          try {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = w;
-            workerSet = true;
-            break;
-          } catch (e) { /* cuba yg seterusnya */ }
-        }
-        if (!workerSet) console.warn('Amaran: workerSrc untuk PDF.js belum ditetapkan.');
-
-        // 3) Akhir sekali — muat app.js anda
+        // Akhir: app.js
         await loadScript('app.js');
 
-        // Sanity checks untuk debug
-        console.log('XLSX versi:', XLSX?.version);
-        console.log('pdfjsLib OK:', typeof pdfjsLib);
-
-      } catch (err) {
-        console.error('Ralat semasa memuat library:', err);
-        alert('Ralat memuat library (XLSX/PDF.js). Sila semak rangkaian/CDN atau guna salinan lokal di /libs/');
+        console.log('OK: XLSX', typeof XLSX, 'pdfjsLib', typeof pdfjsLib);
+      } catch (e) {
+        console.error('Ralat semasa memuat library:', e);
+        alert('Ralat memuat library (XLSX/PDF.js). Sila pastikan folder "libs" & tiga fail berada dalam repo /FormLabPantai/.');
       }
     }
-
-    // Mulakan boot sebaik sahaja DOM siap
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', boot);
-    } else {
-      boot();
-    }
+    (document.readyState === 'loading')
+      ? document.addEventListener('DOMContentLoaded', boot)
+      : boot();
   </script>
 </body>
 </html>
