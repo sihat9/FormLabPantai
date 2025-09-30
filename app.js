@@ -61,6 +61,9 @@ async function renderRecord(rec){
   ctx.clearRect(0,0,$canvas.width,$canvas.height);
   ctx.drawImage(img, 0, 0, img.width, img.height);
 
+  // Grid halus hanya bila pins ON (bantu kalibrasi)
+  if (showPins) drawGrid(ctx, $canvas.width, $canvas.height);
+
   // Teks
   ctx.fillStyle = '#000';
   ctx.font = '22px Helvetica';
@@ -118,12 +121,18 @@ async function renderRecord(rec){
   }
 
   // Papar/hide pin
-  if (showPins) renderPinsLayer();
+  if (showPins) renderPinsLayer(); else $pins.innerHTML='';
+}
+
+function drawGrid(ctx, w, h){
+  ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.lineWidth = 1;
+  for (let x=0; x<=w; x+=100){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+  for (let y=0; y<=h; y+=100){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+  ctx.restore();
 }
 
 /************ PINS (drag & drop) ************/
 function listAllKeysForPins(){
-  // Hanya pin untuk top-level (x,y) dan subkey penting yang biasa digunakan
   const baseKeys = [
     'name','address','postcode','mrn','nric_passport','dob','age','contact','sex','email',
     'doctor_name','doctor_clinic','history_notes','drug_last_dose_date','drug_last_dose_time',
@@ -132,7 +141,6 @@ function listAllKeysForPins(){
   ];
   const subPairs = [
     ['specimen_type',['BLOOD','URINE','STOOL']]
-    // Tambah profile/individual jika mahu buat pin juga
   ];
   const out = [...baseKeys];
   subPairs.forEach(([grp, arr])=>arr.forEach(v=>out.push(`${grp}.${v}`)));
@@ -174,14 +182,13 @@ function makeDraggable(el){
     el.style.left = nx + 'px';
     el.style.top  = ny + 'px';
   };
-  const onUp = (ev)=>{
+  const onUp = ()=>{
     if (!drag) return;
     drag = false;
     const nx = parseFloat(el.style.left);
     const ny = parseFloat(el.style.top);
     setPoint(el.dataset.key, {x:nx,y:ny});
     saveMap();
-    // Re-render preview untuk nampak teks ikut lokasi baru
     if (cacheRows.length) renderRecord(cacheRows[0]);
   };
   el.addEventListener('pointerdown', onDown);
@@ -197,7 +204,7 @@ const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
 
 /************ MAP + SIMPANAN ************/
 function defaultMap(){
-  // Anggaran awal (A4 tinggi ~1654×2339). Nanti cuma seret pin ke tempat sebenar.
+  // Anggaran awal (A4 tinggi ~1654×2339). Seret pin untuk tepatkan.
   return {
     name:{x:220,y:820},
     address:{x:220,y:900},
@@ -225,8 +232,8 @@ function defaultMap(){
       BLOOD:{x:185,y:700}, URINE:{x:270,y:700}, STOOL:{x:360,y:700}
     },
 
-    profile:{},       // anda boleh tambah jika mahu “✓” profile tertentu
-    individual:{},    // anda boleh tambah jika mahu “✓” ujian individu
+    profile:{},
+    individual:{},
     other_tests_rows:[{x:220,y:1500},{x:220,y:1530},{x:220,y:1560}]
   };
 }
@@ -285,7 +292,7 @@ $('#btnPreview').addEventListener('click', async ()=>{
 $('#btnTogglePins').addEventListener('click', async ()=>{
   showPins = !showPins;
   $('#btnTogglePins').textContent = showPins ? 'Hide Pins' : 'Show Pins (drag to place)';
-  if (showPins) renderPinsLayer(); else $pins.innerHTML='';
+  if (cacheRows.length) await renderRecord(cacheRows[0]); // redraw with/without pins
 });
 
 $('#btnExportMap').addEventListener('click', ()=>{
