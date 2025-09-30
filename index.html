@@ -7,12 +7,13 @@
   <style>
     body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:16px}
     .bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
-    button{padding:8px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer}
+    button,select{padding:8px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer}
     button:hover{background:#f6f6f6}
     pre{max-height:260px;overflow:auto;background:#fafafa;border:1px solid #eee;padding:8px;border-radius:8px}
     canvas{border:1px solid #eee;max-width:100%;background:#fff}
     h3{margin:12px 0 8px}
     label{user-select:none}
+    .muted{opacity:.7}
     @media print{ .no-print{display:none} body{margin:0} canvas{page-break-after:always;border:none} }
   </style>
 </head>
@@ -22,7 +23,30 @@
     <button id="btnUpload">Upload → Sheet</button>
     <button id="btnPreview">Preview Rekod Pertama</button>
     <button id="btnPrintAll">Print All (daripada CSV ini)</button>
-    <label style="margin-left:auto"><input type="checkbox" id="calibrate"> Calibrate (klik canvas)</label>
+
+    <label class="muted"><input type="checkbox" id="calibrate"> Calibrate (klik canvas)</label>
+    <select id="field">
+      <option value="">— pilih medan untuk kalibrasi —</option>
+      <option value="name">name</option>
+      <option value="address">address</option>
+      <option value="postcode">postcode</option>
+      <option value="mrn">mrn</option>
+      <option value="nric_passport">nric_passport</option>
+      <option value="dob">dob</option>
+      <option value="age">age</option>
+      <option value="contact">contact</option>
+      <option value="sex">sex</option>
+      <option value="email">email</option>
+      <option value="doctor_name">doctor_name</option>
+      <option value="doctor_clinic">doctor_clinic</option>
+      <option value="specimen_collection_date">specimen_collection_date</option>
+      <option value="specimen_collection_time">specimen_collection_time</option>
+      <option value="collected_by">collected_by</option>
+      <option value="fasting_yes">fasting_yes (✓)</option>
+      <option value="fasting_no">fasting_no (✓)</option>
+    </select>
+    <button id="btnExportMap" title="Salin MAP semasa (untuk tampal ke app.js)">Export MAP</button>
+    <span class="muted">Koordinat akan disimpan automatik (localStorage)</span>
   </div>
 
   <div class="no-print">
@@ -33,7 +57,6 @@
   <h3>Pratonton</h3>
   <canvas id="c" width="1654" height="2339"></canvas>
 
-  <!-- Pecah cache jika anda update app.js -->
-  <script src="app.js?v=upload_formdata_1"></script>
+  <script src="app.js?v=calib2"></script>
 </body>
 </html>
